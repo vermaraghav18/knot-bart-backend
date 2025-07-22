@@ -1,6 +1,6 @@
-fastapi
-uvicorn
-transformers==4.41.1
-torch==2.3.0
+fastapi==0.88.0
+uvicorn==0.22.0
+transformers==4.33.2
+torch==2.0.1
 bs4
 sentencepiece

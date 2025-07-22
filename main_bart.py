@@ -11,7 +11,7 @@ import traceback
 app = FastAPI()
 
 # Load lightweight summarizer (under 512MB)
-model_name = "csebuetnlp/mT5_multilingual_XLSum"
+model_name = "sshleifer/distilbart-cnn-12-6"
 tokenizer = AutoTokenizer.from_pretrained(model_name)
 model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
