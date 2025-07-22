@@ -1,5 +1,5 @@
 fastapi
 uvicorn
 transformers==4.41.1
-torch
-beautifulsoup4
+torch==2.3.0
+bs4
