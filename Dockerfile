@@ -1,19 +1,21 @@
-# Use the official lightweight Python image
+# Use a minimal image with Python 3.10
 FROM python:3.10-slim
 
-# Set the working directory
+# Set working directory
 WORKDIR /app
 
-# Copy your backend files into the image
+# Copy everything into the container
 COPY . .
 
-# Upgrade pip and install Python dependencies
+# Install dependencies
 RUN pip install --upgrade pip
 RUN pip install --no-cache-dir -r requirements.txt
 
-
-# Expose the dynamic port from Render (default fallback to 10002)
+# Expose port for Render
 EXPOSE 10002
 
-# Use shell form so env vars like $PORT are interpreted
-CMD uvicorn main_bart:app --host 0.0.0.0 --port ${PORT:-10002}
+# Required environment for models like mT5
+ENV TOKENIZERS_PARALLELISM=false
+
+# Start the app (Render injects $PORT)
+CMD ["uvicorn", "main_bart:app", "--host", "0.0.0.0", "--port", "10002"]
