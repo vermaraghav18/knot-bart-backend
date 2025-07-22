@@ -9,11 +9,10 @@ import traceback
 
 app = FastAPI()
 
-# Load the BART summarization pipeline
-summarizer = pipeline("summarization", model="Falconsai/text_summarization")
+# Load BART summarization pipeline (lighter model)
+summarizer = pipeline("summarization", model="sshleifer/distilbart-cnn-12-6")
 
-
-
+# ----------- Data Models ------------
 class SummaryRequest(BaseModel):
     text: str
     sentences: int = 5
@@ -25,20 +24,19 @@ class ErrorResponse(BaseModel):
     detail: str
     traceback: str | None = None
 
-# Strip HTML and clean whitespace
+# ----------- Utility Functions ------------
 def clean_html(raw_html: str) -> str:
     soup = BeautifulSoup(raw_html, "html.parser")
     return ' '.join(soup.get_text(separator=' ').split())
 
-# Limit final summary to 70 words max
 def limit_words(text: str, max_words=120) -> str:
     words = text.split()
     return ' '.join(words[:max_words]) + ('...' if len(words) > max_words else '')
 
-# Compare summary and title for similarity
 def is_similar(summary: str, title: str, threshold: float = 0.85) -> bool:
     return title.lower().strip() in summary.lower().strip()
 
+# ----------- Global Error Handler ------------
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     tb_str = ''.join(traceback.format_tb(exc.__traceback__)) if exc.__traceback__ else None
@@ -49,36 +47,42 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
     return JSONResponse(status_code=500, content=error_response.dict())
 
+# ----------- Summarization Endpoint ------------
 @app.post("/summarize")
 async def summarize(request: SummaryRequest):
     clean_text = clean_html(request.text)
     word_count = len(clean_text.split())
 
+    # 🛑 Block overly long inputs
+    if len(clean_text) > 2048:
+        return JSONResponse(
+            status_code=413,
+            content={"error": "Input text too long. Please reduce the content."}
+        )
+
+    # 🔹 If short, return cleaned snippet
     if word_count < 150:
-        # Too short, just return cleaned and capped version
         capped = limit_words(clean_text, max_words=120)
         return JSONResponse(content={"summary": [capped]})
 
-    # Use BART summarizer
-    result = summarizer(clean_text, max_length=80, min_length=40, do_sample=False)
+    try:
+        result = summarizer(clean_text, max_length=80, min_length=40, do_sample=False)
+        summary_text = result[0]['summary_text']
 
+        if is_similar(summary_text, request.title):
+            summary_text = "Summary too similar to title. Skipped."
 
-    summary_text = result[0]['summary_text']
+        capped_summary = limit_words(summary_text, max_words=120)
 
-    # Avoid duplicate title
-    if is_similar(summary_text, request.title):
-        summary_text = "Summary too similar to title. Skipped."
+        return JSONResponse(
+            content={"summary": [capped_summary]},
+            media_type="application/json; charset=utf-8"
+        )
 
-    capped_summary = limit_words(summary_text, max_words=120)
+    except Exception as e:
+        raise RuntimeError(f"Summarization failed: {str(e)}")
 
-    return JSONResponse(
-        content={"summary": [capped_summary]},
-        media_type="application/json; charset=utf-8"
-    )
-
-
-
+# ----------- Render Entry Point ------------
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10002))
     uvicorn.run("main_bart:app", host="0.0.0.0", port=port)
-
