@@ -5,6 +5,9 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# ✅ Download punkt tokenizer needed by Sumy
+RUN python -m nltk.downloader punkt
+
 COPY . .
 
 ENV PYTHONUNBUFFERED=1
