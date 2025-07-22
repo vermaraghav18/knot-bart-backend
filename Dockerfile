@@ -11,8 +11,8 @@ COPY . .
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
-# Expose the port your app runs on
+# Expose the dynamic port from Render (default fallback to 10002)
 EXPOSE 10002
 
-# Command to run the BART server
-CMD ["uvicorn", "main_bart:app", "--host", "0.0.0.0", "--port", "10002"]
+# Use shell form so env vars like $PORT are interpreted
+CMD uvicorn main_bart:app --host 0.0.0.0 --port ${PORT:-10002}
