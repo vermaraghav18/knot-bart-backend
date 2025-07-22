@@ -1,4 +1,5 @@
 from fastapi import FastAPI, Request
+import os
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from transformers import pipeline
@@ -71,5 +72,9 @@ async def summarize(request: SummaryRequest):
         media_type="application/json; charset=utf-8"
     )
 
+
+
 if __name__ == "__main__":
-    uvicorn.run("main_bart:app", host="0.0.0.0", port=10002)
+    port = int(os.environ.get("PORT", 10002))
+    uvicorn.run("main_bart:app", host="0.0.0.0", port=port)
+
