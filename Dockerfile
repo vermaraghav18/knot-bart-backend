@@ -9,7 +9,8 @@ COPY . .
 
 # Upgrade pip and install Python dependencies
 RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
 
 # Expose the dynamic port from Render (default fallback to 10002)
 EXPOSE 10002

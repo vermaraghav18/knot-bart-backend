@@ -10,7 +10,9 @@ import traceback
 app = FastAPI()
 
 # Load the BART summarization pipeline
-summarizer = pipeline("summarization", model="facebook/bart-large-cnn")
+summarizer = pipeline("summarization", model="Falconsai/text_summarization")
+
+
 
 class SummaryRequest(BaseModel):
     text: str
@@ -58,7 +60,9 @@ async def summarize(request: SummaryRequest):
         return JSONResponse(content={"summary": [capped]})
 
     # Use BART summarizer
-    result = summarizer(clean_text, max_length=130, min_length=70, do_sample=False)
+    result = summarizer(clean_text, max_length=80, min_length=40, do_sample=False)
+
+
     summary_text = result[0]['summary_text']
 
     # Avoid duplicate title
