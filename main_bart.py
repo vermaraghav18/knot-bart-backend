@@ -2,18 +2,14 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from bs4 import BeautifulSoup
-from transformers import AutoTokenizer, AutoModelForSeq2SeqLM
-import torch
-import uvicorn
-import os
+from sumy.parsers.plaintext import PlaintextParser
+from sumy.nlp.tokenizers import Tokenizer
+from sumy.summarizers.lsa import LsaSummarizer
 import traceback
+import os
+import uvicorn
 
 app = FastAPI()
-
-# Load lightweight summarizer (under 512MB)
-model_name = "sshleifer/distilbart-cnn-12-6"
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForSeq2SeqLM.from_pretrained(model_name)
 
 # ----------- Models ------------
 class SummaryRequest(BaseModel):
@@ -32,12 +28,11 @@ def clean_html(raw_html: str) -> str:
     soup = BeautifulSoup(raw_html, "html.parser")
     return ' '.join(soup.get_text(separator=' ').split())
 
-def limit_words(text: str, max_words=120) -> str:
-    words = text.split()
-    return ' '.join(words[:max_words]) + ('...' if len(words) > max_words else '')
-
-def is_similar(summary: str, title: str, threshold: float = 0.85) -> bool:
-    return title.lower().strip() in summary.lower().strip()
+def sumy_summarize(text: str, sentence_count: int = 5) -> str:
+    parser = PlaintextParser.from_string(text, Tokenizer("english"))
+    summarizer = LsaSummarizer()
+    summary_sentences = summarizer(parser.document, sentence_count)
+    return ' '.join(str(sentence) for sentence in summary_sentences)
 
 # ----------- Global Error Handler ------------
 @app.exception_handler(Exception)
@@ -56,34 +51,12 @@ async def summarize(request: SummaryRequest):
     clean_text = clean_html(request.text)
     word_count = len(clean_text.split())
 
-    # 🛑 Block overly long inputs
-    if len(clean_text) > 2048:
-        return JSONResponse(
-            status_code=413,
-            content={"error": "Input text too long. Please reduce the content."}
-        )
-
-    # 🔹 Short input → return capped original
-    if word_count < 150:
-        capped = limit_words(clean_text, max_words=120)
-        return JSONResponse(content={"summary": [capped]})
+    if word_count < 50:
+        return JSONResponse(content={"summary": [clean_text]})
 
     try:
-        input_ids = tokenizer.encode("summarize: " + clean_text, return_tensors="pt", max_length=512, truncation=True)
-        output_ids = model.generate(input_ids, max_length=80, min_length=40, length_penalty=2.0, num_beams=4, early_stopping=True)
-
-        summary_text = tokenizer.decode(output_ids[0], skip_special_tokens=True)
-
-        if is_similar(summary_text, request.title):
-            summary_text = "Summary too similar to title. Skipped."
-
-        capped_summary = limit_words(summary_text, max_words=120)
-
-        return JSONResponse(
-            content={"summary": [capped_summary]},
-            media_type="application/json; charset=utf-8"
-        )
-
+        summary = sumy_summarize(clean_text, sentence_count=request.sentences)
+        return JSONResponse(content={"summary": [summary]})
     except Exception as e:
         raise RuntimeError(f"Summarization failed: {str(e)}")
 
